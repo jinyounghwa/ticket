@@ -43,7 +43,7 @@
 
 1. 저장소 클론
 ```bash
-git clone https://github.com/jinyounghwa/ticket.git
+git clone https://github.com/your-username/ticket-service.git
 cd ticket-service
 ```
 
