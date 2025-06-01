@@ -7,11 +7,23 @@ import { useRouter } from 'next/navigation';
 interface Ticket {
   id: string;
   eventId: string;
-  eventTitle: string;
-  seatName: string;
-  price: number;
-  purchaseDate: string;
-  status: 'active' | 'used' | 'cancelled' | 'refund_requested' | 'refunded';
+  seatId: string;
+  status: 'RESERVED' | 'CANCELLED' | 'REFUNDED';
+  reservedAt: string;
+  cancelledAt?: string;
+  refundedAt?: string;
+  event: {
+    id: string;
+    title: string;
+    location: string;
+    startTime: string;
+    endTime: string;
+  };
+  seat: {
+    id: string;
+    seatNumber: string;
+    price: number;
+  };
 }
 
 export default function MyPage() {
@@ -63,7 +75,7 @@ export default function MyPage() {
       // 티켓 목록 업데이트
       setTickets(tickets.map(ticket => 
         ticket.id === ticketId 
-          ? { ...ticket, status: 'cancelled' as const } 
+          ? { ...ticket, status: 'CANCELLED' as const } 
           : ticket
       ));
       
@@ -82,21 +94,23 @@ export default function MyPage() {
   };
 
   const handleRequestRefund = async (ticketId: string) => {
-    const reason = prompt('환불 사유를 입력해주세요:');
-    if (reason === null) return; // 취소한 경우
+    if (!confirm('정말로 이 티켓에 대한 환불을 요청하시겠습니까?')) {
+      return;
+    }
+    
+    const reason = prompt('환불 사유를 입력해주세요 (선택사항):', '');
     
     try {
       setProcessingTicketId(ticketId);
-      await ticketsAPI.requestRefund(ticketId, reason);
+      await ticketsAPI.requestRefund(ticketId, reason || undefined);
       
-      // 티켓 목록 업데이트
-      setTickets(tickets.map(ticket => 
-        ticket.id === ticketId 
-          ? { ...ticket, status: 'refund_requested' as const } 
-          : ticket
-      ));
+      // 티켓 목록 업데이트 - 백엔드에서 상태가 바로 변경되지 않을 수 있으므로 UI만 업데이트
+      // 실제 상태는 다음 조회 시 반영됨
+      alert('환불 요청이 성공적으로 접수되었습니다.');
       
-      alert('환불 요청이 성공적으로 제출되었습니다.');
+      // 티켓 목록 다시 불러오기
+      const response = await ticketsAPI.getMyTickets();
+      setTickets(response.data);
     } catch (err: any) {
       console.error('환불 요청 중 오류가 발생했습니다:', err);
       
@@ -122,25 +136,29 @@ export default function MyPage() {
     );
   }
 
-  const getStatusText = (status: Ticket['status']) => {
+  const getStatusText = (status: string) => {
     switch (status) {
-      case 'active': return '사용 가능';
-      case 'used': return '사용 완료';
-      case 'cancelled': return '취소됨';
-      case 'refund_requested': return '환불 요청 중';
-      case 'refunded': return '환불 완료';
-      default: return status;
+      case 'RESERVED':
+        return '예매 완료';
+      case 'CANCELLED':
+        return '취소됨';
+      case 'REFUNDED':
+        return '환불 완료';
+      default:
+        return '알 수 없음';
     }
   };
-
-  const getStatusColor = (status: Ticket['status']) => {
+  
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'used': return 'bg-gray-100 text-gray-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      case 'refund_requested': return 'bg-yellow-100 text-yellow-800';
-      case 'refunded': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'RESERVED':
+        return 'bg-green-100 text-green-800';
+      case 'CANCELLED':
+        return 'bg-red-100 text-red-800';
+      case 'REFUNDED':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -198,17 +216,21 @@ export default function MyPage() {
                         href={`/events/${ticket.eventId}`}
                         className="text-indigo-600 hover:text-indigo-900"
                       >
-                        {ticket.eventTitle}
+                        {ticket.event?.title || '공연명 정보 없음'}
                       </a>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {ticket.seatName}
+                      {ticket.seat?.seatNumber || '좌석 정보 없음'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {ticket.price.toLocaleString()}원
+                      {ticket.seat?.price !== undefined && ticket.seat?.price !== null
+                        ? `${ticket.seat.price.toLocaleString()}원`
+                        : '가격 정보 없음'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {new Date(ticket.purchaseDate).toLocaleDateString('ko-KR')}
+                      {ticket.reservedAt
+                        ? new Date(ticket.reservedAt).toLocaleDateString('ko-KR')
+                        : '구매 일자 정보 없음'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
@@ -216,7 +238,7 @@ export default function MyPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {ticket.status === 'active' && (
+                      {ticket.status === 'RESERVED' && (
                         <>
                           <button
                             onClick={() => handleCancelTicket(ticket.id)}

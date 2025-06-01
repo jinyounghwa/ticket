@@ -67,4 +67,30 @@ export class EventsService {
       throw new NotFoundException('공연을 찾을 수 없습니다.');
     }
   }
+
+  async getSeats(id: string) {
+    try {
+      // 이벤트 존재 여부 확인
+      const event = await this.prisma.event.findUnique({
+        where: { id },
+      });
+
+      if (!event) {
+        throw new NotFoundException('공연을 찾을 수 없습니다.');
+      }
+
+      // 이벤트에 해당하는 좌석 정보 조회
+      const seats = await this.prisma.seat.findMany({
+        where: { eventId: id },
+        orderBy: { seatNumber: 'asc' },
+      });
+
+      return seats;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new NotFoundException('좌석 정보를 찾을 수 없습니다.');
+    }
+  }
 }

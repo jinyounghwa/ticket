@@ -3,12 +3,15 @@
 import React, { useEffect, useState } from 'react';
 import { eventsAPI, ticketsAPI } from '../../../lib/api';
 import { useRouter } from 'next/navigation';
+import { v4 as uuidv4 } from 'uuid';
+import { useParams } from 'next/navigation';
 
 interface Event {
   id: string;
   title: string;
   description: string;
-  date: string;
+  startTime: string;
+  endTime: string;
   location: string;
   price: number;
   imageUrl?: string;
@@ -22,7 +25,8 @@ interface Seat {
   isAvailable: boolean;
 }
 
-export default function EventDetailPage({ params }: { params: { id: string } }) {
+export default function EventDetailPage() {
+  const params = useParams();
   const router = useRouter();
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,139 +36,165 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
   const [guestEmail, setGuestEmail] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // 일반 ID를 UUID로 변환하는 함수
+  const convertToUUID = (id: string): string => {
+    // 이미 UUID 형식이면 그대로 반환
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return id;
+    }
+    
+    // 간단한 ID를 UUID로 변환 (결정적으로 생성하기 위해 ID를 시드로 사용)
+    // 실제 환경에서는 서버에서 UUID를 제공하는 것이 좋습니다
+    const seed = parseInt(id, 10) || 0;
+    let uuid = '';
+    
+    // 간단한 시드 기반 UUID 생성 (실제 환경에서는 더 나은 방법 사용 권장)
+    try {
+      // 시드 기반으로 결정적 UUID 생성
+      const seedStr = `seed-${seed}-${id}`;
+      uuid = uuidv4({ random: Array.from({ length: 16 }, (_, i) => 
+        seedStr.charCodeAt(i % seedStr.length)) });
+    } catch (e) {
+      // 변환 실패 시 새 UUID 생성
+      uuid = uuidv4();
+    }
+    
+    console.log(`ID 변환: ${id} -> ${uuid}`);
+    return uuid;
+  };
+
   useEffect(() => {
     // 로그인 상태 확인
-    const token = localStorage.getItem('token');
-    setIsLoggedIn(!!token);
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      setIsLoggedIn(!!token);
+    }
 
     const fetchEventDetails = async () => {
       try {
         setLoading(true);
+        
+        // params가 있는지 확인
+        const eventId = params?.id as string;
+        if (!eventId) {
+          throw new Error('이벤트 ID를 찾을 수 없습니다.');
+        }
+        
+        console.log('이벤트 ID:', eventId);
+        
+        // 이벤트 정보 가져오기 - 먼저 원래 ID로 시도하고, 실패하면 UUID로 변환하여 재시도
+        let eventData;
+        let eventIdForSeats = eventId;
+        
         try {
-          // API 호출 시도
-          const response = await eventsAPI.getById(params.id);
-          setEvent(response.data);
-          setError(null);
-        } catch (apiErr) {
-          console.error('API 호출 실패, 하드코딩된 데이터 사용:', apiErr);
+          // 원래 ID로 먼저 시도
+          console.log('원래 ID로 이벤트 정보 요청');
+          const response = await eventsAPI.getById(eventId);
+          eventData = response.data;
+          console.log('원래 ID로 이벤트 정보 요청 성공:', eventData);
+        } catch (originalError) {
+          // 실패하면 UUID로 변환하여 재시도
+          console.log('원래 ID로 요청 실패, UUID 변환 시도');
+          const uuidEventId = convertToUUID(eventId);
+          console.log('변환된 UUID:', uuidEventId);
           
-          // 하드코딩된 데이터 사용
-          const mockEvents = [
-            {
-              id: '1',
-              title: '아이유 콘서트 - The Golden Hour',
-              description: '아이유의 더 골든 아워 콘서트로 여러분을 초대합니다. 아이유의 노래와 함께 특별한 밤을 보내세요. 최고의 무대 장치와 음향 시스템을 갖춘 올림픽 공원 체육관에서 편안한 좌석에서 아이유의 노래를 만나보세요. 이번 콘서트에서는 아이유의 역대 명곡은 물론, 최근 발매된 신곡도 함께 만나볼 수 있습니다.',
-              date: '2025-06-15T19:00:00',
-              location: '올림픽 공원 체육관',
-              price: 110000,
-              imageUrl: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-              seats: [
-                { id: '1-A1', name: 'A1', price: 110000, isAvailable: true },
-                { id: '1-A2', name: 'A2', price: 110000, isAvailable: true },
-                { id: '1-A3', name: 'A3', price: 110000, isAvailable: false },
-                { id: '1-B1', name: 'B1', price: 88000, isAvailable: true },
-                { id: '1-B2', name: 'B2', price: 88000, isAvailable: true },
-                { id: '1-C1', name: 'C1', price: 66000, isAvailable: true },
-              ]
-            },
-            {
-              id: '2',
-              title: '오페라 - 라 트라비아타',
-              description: '주세페 베르디의 유명한 오페라 라 트라비아타를 지금 만나보세요. 환상적인 무대와 아름다운 음악이 여러분을 기다리고 있습니다. 세종문화회관의 우아한 음향과 함께 세계적인 오페라 가수들이 함께하는 이번 공연은 한국에서 좋은 오페라를 만나기 어려운 분들에게 특별한 기회가 될 것입니다.',
-              date: '2025-07-20T18:30:00',
-              location: '세종문화회관',
-              price: 150000,
-              imageUrl: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-              seats: [
-                { id: '2-VIP1', name: 'VIP1', price: 150000, isAvailable: true },
-                { id: '2-VIP2', name: 'VIP2', price: 150000, isAvailable: false },
-                { id: '2-R1', name: 'R1', price: 120000, isAvailable: true },
-                { id: '2-R2', name: 'R2', price: 120000, isAvailable: true },
-                { id: '2-S1', name: 'S1', price: 100000, isAvailable: true },
-                { id: '2-S2', name: 'S2', price: 100000, isAvailable: true },
-              ]
-            },
-            {
-              id: '3',
-              title: '지브리 오케스트라 - 영화음악 콘서트',
-              description: '지브리 애니메이션의 명곡들을 오케스트라로 만나보세요. 토토로, 하울의 성, 공주 모노노케 등 여러 작품의 음악을 새롭게 해석한 공연입니다. 아이들부터 어른까지 모두가 함께 즐길 수 있는 이번 공연은 지브리 애니메이션을 사랑하는 모든 분들에게 잘 어울리는 공연이 될 것입니다.',
-              date: '2025-08-05T19:30:00',
-              location: '롯데 콘서트홀',
-              price: 88000,
-              imageUrl: 'https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-              seats: [
-                { id: '3-A1', name: 'A1', price: 88000, isAvailable: true },
-                { id: '3-A2', name: 'A2', price: 88000, isAvailable: true },
-                { id: '3-A3', name: 'A3', price: 88000, isAvailable: true },
-                { id: '3-B1', name: 'B1', price: 66000, isAvailable: false },
-                { id: '3-B2', name: 'B2', price: 66000, isAvailable: true },
-                { id: '3-C1', name: 'C1', price: 44000, isAvailable: true },
-              ]
-            },
-            {
-              id: '4',
-              title: '방탄소년단 월드투어 - 서울 특별공연',
-              description: '세계적인 인기를 누리고 있는 방탄소년단의 월드투어 서울 특별공연입니다. 화려한 무대와 함께 잠시도 쉬지 않는 공연을 즐기세요.',
-              date: '2025-09-10T18:00:00',
-              location: '장운 올림픽 주경기장',
-              price: 165000,
-              imageUrl: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-              seats: [
-                { id: '4-VIP1', name: 'VIP1', price: 165000, isAvailable: false },
-                { id: '4-VIP2', name: 'VIP2', price: 165000, isAvailable: false },
-                { id: '4-R1', name: 'R1', price: 132000, isAvailable: true },
-                { id: '4-R2', name: 'R2', price: 132000, isAvailable: true },
-                { id: '4-S1', name: 'S1', price: 110000, isAvailable: true },
-                { id: '4-S2', name: 'S2', price: 110000, isAvailable: true },
-              ]
-            },
-            {
-              id: '5',
-              title: '클래식 오케스트라 - 베토벤 심포니 전집',
-              description: '베토벤의 심포니 전집을 하루에 만나보는 특별한 공연입니다. 세계적인 지휘자와 연주자들이 함께하는 고품격 클래식 공연입니다.',
-              date: '2025-10-15T19:00:00',
-              location: '예술의전당 콘서트홀',
-              price: 120000,
-              imageUrl: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-              seats: [
-                { id: '5-R1', name: 'R1', price: 120000, isAvailable: true },
-                { id: '5-R2', name: 'R2', price: 120000, isAvailable: true },
-                { id: '5-S1', name: 'S1', price: 100000, isAvailable: true },
-                { id: '5-S2', name: 'S2', price: 100000, isAvailable: false },
-                { id: '5-A1', name: 'A1', price: 80000, isAvailable: true },
-                { id: '5-A2', name: 'A2', price: 80000, isAvailable: true },
-              ]
-            },
-            {
-              id: '6',
-              title: '뮤지컬 오페라 - 레 미제라블',
-              description: '세계적인 뮤지컬 오페라 레 미제라블을 한국어 버전으로 만나보세요. 장 발장의 명작을 움직이는 무대와 음악으로 재현합니다.',
-              date: '2025-11-20T18:30:00',
-              location: '블루스퀘어 인터파크 홀',
-              price: 140000,
-              imageUrl: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-              seats: [
-                { id: '6-VIP1', name: 'VIP1', price: 140000, isAvailable: true },
-                { id: '6-VIP2', name: 'VIP2', price: 140000, isAvailable: true },
-                { id: '6-R1', name: 'R1', price: 120000, isAvailable: false },
-                { id: '6-R2', name: 'R2', price: 120000, isAvailable: true },
-                { id: '6-S1', name: 'S1', price: 100000, isAvailable: true },
-                { id: '6-S2', name: 'S2', price: 100000, isAvailable: true },
-              ]
-            }
-          ];
-          
-          // 해당 ID에 맞는 공연 찾기
-          const foundEvent = mockEvents.find(event => event.id === params.id);
-          if (foundEvent) {
-            setEvent(foundEvent);
-            setError(null);
-          } else {
-            setError('이벤트를 찾을 수 없습니다.');
+          try {
+            const response = await eventsAPI.getById(uuidEventId);
+            eventData = response.data;
+            eventIdForSeats = uuidEventId; // 좌석 요청에 사용할 ID 업데이트
+            console.log('UUID 변환 후 이벤트 정보 요청 성공:', eventData);
+          } catch (uuidError) {
+            console.error('UUID 변환 후에도 요청 실패:', uuidError);
+            throw uuidError;
           }
+        }
+        
+        // 이벤트 데이터 설정
+        if (eventData) {
+          setEvent(eventData);
+          setError(null);
+          
+          // 좌석 정보 가져오기
+          try {
+            console.log('이벤트의 좌석 정보 요청:', eventIdForSeats);
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4001';
+            const seatsResponse = await fetch(`${API_URL}/events/${eventIdForSeats}/seats`);
+            const seatsData = await seatsResponse.json();
+            console.log('좌석 정보 응답:', seatsData);
+            // 좌석 데이터 구조 상세 확인
+            if (Array.isArray(seatsData) && seatsData.length > 0) {
+              console.log('첫 번째 좌석 구조:', JSON.stringify(seatsData[0], null, 2));
+              console.log('좌석 ID 형식:', seatsData[0].id);
+              console.log('좌석 이름 형식:', seatsData[0].seatNumber || seatsData[0].name);
+              console.log('좌석 예약 상태:', seatsData[0].isReserved !== undefined ? 'isReserved 사용' : 'isAvailable 사용');
+            }
+            
+            if (Array.isArray(seatsData) && seatsData.length > 0) {
+              // 백엔드 좌석 데이터 구조를 프론트엔드 구조에 맞게 변환
+              const mappedSeats = seatsData.map(seat => ({
+                id: seat.id,
+                name: seat.seatNumber || `좌석 ${seat.id.substring(0, 4)}`,
+                price: seat.price || 10000, // 가격 정보가 없으면 기본값 사용
+                isAvailable: seat.isReserved !== undefined ? !seat.isReserved : true
+              }));
+              
+              console.log('변환된 좌석 데이터:', mappedSeats[0]);
+              
+              // 이벤트 데이터에 변환된 좌석 정보 추가
+              setEvent(prev => prev ? { ...prev, seats: mappedSeats } : null);
+            } else {
+              console.warn('이 이벤트에 등록된 좌석이 없습니다:', eventIdForSeats);
+            }
+          } catch (seatsErr) {
+            console.error('좌석 정보를 불러오는 중 오류가 발생했습니다:', seatsErr);
+            // 좌석 정보를 가져오는 데 실패해도 이벤트 정보는 표시
+          }
+        } else {
+          setError('이벤트 정보를 찾을 수 없습니다.');
         }
       } catch (err) {
         console.error('이벤트 상세 정보를 불러오는 중 오류가 발생했습니다:', err);
+        
+        // 오류 상세 정보 출력
+        if (err.response) {
+          console.error('응답 데이터:', err.response.data);
+          console.error('응답 상태 코드:', err.response.status);
+          console.error('응답 헤더:', err.response.headers);
+        } else if (err.request) {
+          console.error('요청 정보:', err.request);
+        } else {
+          console.error('오류 메시지:', err.message);
+        }
+        
+        // 임시 테스트 데이터 사용 (실제 서버가 없는 경우)
+        if (err.response && err.response.status === 404) {
+          console.log('임시 테스트 데이터 사용');
+          const now = new Date();
+          const endTime = new Date(now);
+          endTime.setHours(now.getHours() + 3); // 3시간 후 종료
+          
+          const mockEvent = {
+            id: params?.id as string,
+            title: '테스트 이벤트',
+            description: '이것은 테스트 이벤트입니다. 실제 서버가 없는 경우 테스트용으로 표시됩니다.',
+            startTime: now.toISOString(),
+            endTime: endTime.toISOString(),
+            location: '테스트 장소',
+            price: 10000,
+            imageUrl: 'https://via.placeholder.com/400x200?text=테스트+이벤트',
+            seats: [
+              { id: '1', name: 'A1', price: 10000, isAvailable: true },
+              { id: '2', name: 'A2', price: 10000, isAvailable: false },
+              { id: '3', name: 'B1', price: 8000, isAvailable: true },
+              { id: '4', name: 'B2', price: 8000, isAvailable: true },
+            ]
+          };
+          setEvent(mockEvent);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+        
         setError('이벤트 상세 정보를 불러오는 중 오류가 발생했습니다.');
       } finally {
         setLoading(false);
@@ -172,10 +202,17 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
     };
 
     fetchEventDetails();
-  }, [params.id]);
+  }, [params]);
 
   const handleSeatSelect = (seatId: string) => {
+    console.log('좌석 선택:', seatId);
     setSelectedSeat(seatId);
+    console.log('선택된 좌석 상태:', selectedSeat); // 이것은 업데이트 전 상태를 보여줌
+    
+    // 좌석 선택 후 상태 확인
+    setTimeout(() => {
+      console.log('업데이트 후 선택된 좌석:', selectedSeat);
+    }, 0);
   };
 
   const handleBookTicket = async () => {
@@ -187,43 +224,76 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
     try {
       setIsBooking(true);
       
-      let response;
+      const eventId = event?.id;
       
-      if (isLoggedIn) {
-        // 로그인 사용자 예매
-        response = await ticketsAPI.create(event?.id || '', selectedSeat);
-      } else {
-        // 비회원 예매
+      if (!eventId) {
+        throw new Error('이벤트 정보를 찾을 수 없습니다.');
+      }
+      
+      // UUID 형식으로 변환 (이미 UUID 형식이면 그대로 사용, 아니면 변환)
+      const uuidEventId = convertToUUID(eventId);
+      const uuidSeatId = convertToUUID(selectedSeat);
+      
+      console.log('예매 정보:', { eventId: uuidEventId, seatId: uuidSeatId });
+      
+      // UUID 형식 검증
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(uuidEventId) || !uuidPattern.test(uuidSeatId)) {
+        throw new Error('유효한 이벤트 또는 좌석 ID가 아닙니다. 관리자에게 문의하세요.');
+      }
+      
+      // 비회원 예매 시 이메일 검증
+      if (!isLoggedIn) {
         if (!guestEmail) {
           alert('이메일 주소를 입력해주세요.');
           setIsBooking(false);
           return;
         }
         
-        response = await ticketsAPI.createGuest(event?.id || '', selectedSeat, guestEmail);
+        if (!validateEmail(guestEmail)) {
+          alert('유효한 이메일 주소를 입력해주세요.');
+          setIsBooking(false);
+          return;
+        }
       }
       
-      alert('티켓 예매가 완료되었습니다.');
+      // 선택한 좌석 정보 찾기
+      const selectedSeatInfo = event.seats?.find(seat => seat.id === selectedSeat);
       
-      // 예매 완료 후 마이페이지로 이동
-      if (isLoggedIn) {
-        router.push('/my');
-      } else {
-        // 비회원은 예매 확인 페이지로 이동
-        const guestId = response.data.guestId;
-        router.push(`/tickets/guest/${guestId}`);
+      // 결제 페이지로 이동
+      const queryParams = new URLSearchParams({
+        eventId: uuidEventId,
+        eventTitle: event.title,
+        seatId: uuidSeatId,
+        seatName: selectedSeatInfo?.name || '알 수 없는 좌석',
+        price: selectedSeatInfo?.price?.toString() || event.price.toString()
+      });
+      
+      // 비회원 예매 시 이메일 추가
+      if (!isLoggedIn && guestEmail) {
+        queryParams.append('email', guestEmail);
       }
+      
+      router.push(`/payment?${queryParams.toString()}`);
     } catch (err: any) {
-      console.error('티켓 예매 중 오류가 발생했습니다:', err);
+      console.error('티켓 예매 처리 중 오류가 발생했습니다:', err);
       
       if (err.response && err.response.data && err.response.data.message) {
         alert(`예매 실패: ${err.response.data.message}`);
+      } else if (err.message) {
+        alert(`예매 실패: ${err.message}`);
       } else {
-        alert('티켓 예매 중 오류가 발생했습니다. 다시 시도해주세요.');
+        alert('티켓 예매 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
       }
     } finally {
       setIsBooking(false);
     }
+  };
+  
+  // 이메일 유효성 검사 함수
+  const validateEmail = (email: string): boolean => {
+    const re = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+    return re.test(email);
   };
 
   if (loading) {
@@ -259,27 +329,47 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
             <div className="md:flex-shrink-0">
               {event.imageUrl ? (
                 <img 
-                  className="h-64 w-full object-cover md:w-96 md:h-full" 
+                  className="h-80 w-full object-cover md:w-96 md:h-full rounded-t-lg md:rounded-l-lg md:rounded-t-none" 
                   src={event.imageUrl} 
                   alt={event.title} 
                 />
               ) : (
-                <div className="h-64 w-full md:w-96 md:h-full bg-gray-200 flex items-center justify-center">
+                <div className="h-80 w-full md:w-96 md:h-full bg-gray-200 flex items-center justify-center rounded-t-lg md:rounded-l-lg md:rounded-t-none">
                   <span className="text-gray-400">이미지 없음</span>
                 </div>
               )}
             </div>
             <div className="p-8 w-full">
               <div className="uppercase tracking-wide text-sm text-indigo-500 font-semibold">
-                {new Date(event.date).toLocaleDateString('ko-KR')}
+                {new Date(event.startTime).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
               </div>
               <h1 className="mt-2 text-3xl font-bold text-gray-900">{event.title}</h1>
-              <p className="mt-2 text-gray-600">{event.location}</p>
-              <div className="mt-4 text-gray-700">
+              <p className="mt-2 text-gray-600">
+                <span className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {event.location}
+                </span>
+                <span className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-semibold text-gray-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {event.startTime && event.endTime ? (
+                    <>
+                      {new Date(event.startTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} ~ {new Date(event.endTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                    </>
+                  ) : '시간 정보 없음'}
+                </span>
+              </p>
+              <div className="mt-6 text-gray-700 bg-gray-50 p-4 rounded-lg border-l-4 border-indigo-500">
                 {event.description}
               </div>
               <div className="mt-6">
-                <div className="text-2xl font-bold text-indigo-600">{event.price.toLocaleString()}원</div>
+                <div className="text-2xl font-bold text-indigo-600">
+                  {event.price !== undefined ? `${event.price.toLocaleString()}원` : '가격 정보 없음'}
+                </div>
               </div>
             </div>
           </div>
@@ -302,8 +392,12 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                           : 'bg-white border border-gray-300 hover:border-indigo-500'
                     }`}
                   >
-                    <div className="font-medium">{seat.name}</div>
-                    <div className="text-sm mt-1">{seat.price.toLocaleString()}원</div>
+                    <div className="font-medium">{seat.name || '좌석 정보'}</div>
+                    <div className="text-sm mt-1">
+                      {seat.price !== undefined && seat.price !== null
+                        ? `${seat.price.toLocaleString()}원`
+                        : '가격 정보 없음'}
+                    </div>
                   </button>
                 ))}
               </div>

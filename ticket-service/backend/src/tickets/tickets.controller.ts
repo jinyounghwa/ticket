@@ -46,6 +46,14 @@ export class TicketsController {
     return this.ticketsService.createGuestTicket(guestTicketDto);
   }
 
+  @Get('guest/:id')
+  @ApiOperation({ summary: '비회원 티켓 조회', description: '비회원 티켓 조회' })
+  @ApiResponse({ status: 200, description: '티켓 조회 성공' })
+  @ApiResponse({ status: 404, description: '티켓을 찾을 수 없습니다.' })
+  async getGuestTicket(@Param('id') id: string) {
+    return this.ticketsService.findGuestTicket(id);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

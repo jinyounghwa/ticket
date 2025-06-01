@@ -103,12 +103,16 @@ export default function EventList({ limit }: EventListProps) {
             <h2 className="text-xl font-semibold text-gray-900 mb-2">{event.title}</h2>
             <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
             <div className="flex justify-between items-center text-sm text-gray-500 mb-4">
-              <div>{new Date(event.date).toLocaleDateString('ko-KR')}</div>
-              <div>{event.location}</div>
+              <div>
+                {event.date ? new Date(event.date).toLocaleDateString('ko-KR') : '날짜 정보 없음'}
+              </div>
+              <div>{event.location || '장소 정보 없음'}</div>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-lg font-bold text-indigo-600">
-                {event.price.toLocaleString()}원
+                {event.price !== undefined && event.price !== null
+                  ? `${event.price.toLocaleString()}원`
+                  : '가격 정보 없음'}
               </span>
               <Link 
                 href={`/events/${event.id}`}

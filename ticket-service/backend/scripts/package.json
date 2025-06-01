@@ -1,0 +1,10 @@
+{
+  "name": "scripts",
+  "version": "1.0.0",
+  "description": "티켓 서비스 스크립트",
+  "type": "module",
+  "main": "create-events.js",
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}

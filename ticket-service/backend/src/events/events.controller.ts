@@ -57,4 +57,12 @@ export class EventsController {
   remove(@Param('id') id: string) {
     return this.eventsService.remove(id);
   }
+
+  @Get(':id/seats')
+  @ApiOperation({ summary: '공연 좌석 조회', description: '특정 공연의 좌석 정보를 조회합니다.' })
+  @ApiResponse({ status: 200, description: '공연 좌석 조회 성공' })
+  @ApiResponse({ status: 404, description: '공연을 찾을 수 없습니다.' })
+  async getSeats(@Param('id') id: string) {
+    return this.eventsService.getSeats(id);
+  }
 }

@@ -169,6 +169,23 @@ export class TicketsService {
     });
   }
 
+  async findGuestTicket(id: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id },
+      include: {
+        event: true,
+        seat: true,
+        guest: true,
+      },
+    });
+
+    if (!ticket || !ticket.guestId) {
+      throw new NotFoundException('티켓을 찾을 수 없습니다.');
+    }
+
+    return ticket;
+  }
+
   async findOne(id: string) {
     const ticket = await this.prisma.ticket.findUnique({
       where: { id },
