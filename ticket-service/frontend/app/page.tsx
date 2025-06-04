@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import EventList from '../components/EventList';
+import { eventsAPI } from '../lib/api';
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -24,6 +25,31 @@ export default function Home() {
     }
   }, []);
 
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setLoading(true);
+        const response = await eventsAPI.getAll();
+        if (Array.isArray(response.data)) {
+          setEvents(response.data);
+        } else {
+          setEvents([]);
+        }
+        setError(null);
+      } catch (err: any) {
+        setError('공연 목록을 불러오는 중 오류가 발생했습니다.');
+        setEvents([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEvents();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
@@ -34,7 +60,6 @@ export default function Home() {
           <p className="mt-5 max-w-xl mx-auto text-xl text-gray-500">
             다양한 공연과 이벤트의 티켓을 예매하세요.
           </p>
-          
           {isLoggedIn ? (
             <div className="mt-8">
               <p className="text-lg text-gray-700 mb-4">
@@ -66,11 +91,15 @@ export default function Home() {
             </div>
           )}
         </div>
-        
         <div className="mt-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-8">추천 공연</h2>
-          <EventList limit={3} />
-          
+          {loading ? (
+            <div className="text-center text-gray-500">공연 정보를 불러오는 중입니다...</div>
+          ) : error ? (
+            <div className="text-red-500 text-center">{error}</div>
+          ) : (
+            <EventList events={events} limit={3} />
+          )}
           <div className="mt-8 text-center">
             <Link href="/events" className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-indigo-600 bg-white hover:bg-gray-50 shadow">
               모든 공연 보기

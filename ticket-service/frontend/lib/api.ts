@@ -57,9 +57,19 @@ export const authAPI = {
 export const eventsAPI = {
   getAll: () => 
     api.get('/events'),
-  
+
   getById: (id: string) => 
     api.get(`/events/${id}`),
+
+  create: (event: {
+    title: string;
+    description: string;
+    location: string;
+    startTime: string;
+    endTime: string;
+    price: number;
+    imageUrl?: string;
+  }) => api.post('/events', event),
 };
 
 export const ticketsAPI = {
@@ -97,6 +107,9 @@ export const adminAPI = {
   
   approveRefund: (refundRequestId: string) => 
     api.post(`/tickets/refund/approve/${refundRequestId}`),
+    
+  getAllUsers: (page = 1, limit = 10) => 
+    api.get('/admin/users', { params: { page, limit } }),
 };
 
 export default api;

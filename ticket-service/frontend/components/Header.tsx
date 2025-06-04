@@ -14,20 +14,31 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // 클라이언트 사이드에서만 실행
-    const token = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
-    
-    if (token) {
-      setIsLoggedIn(true);
-      if (userStr) {
-        try {
-          setUser(JSON.parse(userStr));
-        } catch (e) {
-          console.error('사용자 정보 파싱 오류:', e);
+    // 로그인 상태 및 사용자 정보 갱신 함수
+    const updateAuthState = () => {
+      const token = localStorage.getItem('token');
+      const userStr = localStorage.getItem('user');
+      if (token) {
+        setIsLoggedIn(true);
+        if (userStr) {
+          try {
+            setUser(JSON.parse(userStr));
+          } catch (e) {
+            console.error('사용자 정보 파싱 오류:', e);
+          }
         }
+      } else {
+        setIsLoggedIn(false);
+        setUser(null);
       }
-    }
+    };
+
+    updateAuthState(); // 최초 마운트 시 실행
+
+    window.addEventListener('storage', updateAuthState);
+    return () => {
+      window.removeEventListener('storage', updateAuthState);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -54,6 +65,11 @@ export default function Header() {
             
             {isLoggedIn ? (
               <>
+                {user?.email === 'admin@admin.com' && (
+                  <Link href="/admin" className="text-indigo-700 font-semibold hover:text-indigo-900">
+                    관리자
+                  </Link>
+                )}
                 <Link href="/my" className="text-gray-600 hover:text-gray-900">
                   마이페이지
                 </Link>

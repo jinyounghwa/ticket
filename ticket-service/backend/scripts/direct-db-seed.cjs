@@ -1,6 +1,7 @@
 // 직접 데이터베이스에 이벤트와 좌석 추가하는 스크립트
-import { PrismaClient } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
+const { PrismaClient } = require('@prisma/client');
+const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcrypt');
 
 const prisma = new PrismaClient();
 
@@ -11,7 +12,21 @@ async function main() {
     await prisma.ticket.deleteMany({});
     await prisma.seat.deleteMany({});
     await prisma.event.deleteMany({});
+    await prisma.user.deleteMany({});
     console.log('기존 데이터 삭제 완료');
+
+    // 관리자 계정 추가
+    const adminEmail = 'admin@admin.com';
+    const adminPassword = 'admin1234';
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
+    await prisma.user.create({
+      data: {
+        email: adminEmail,
+        passwordHash,
+        role: 'ADMIN',
+      },
+    });
+    console.log('관리자 계정(admin@admin.com / admin1234)이 생성되었습니다.');
 
     // 이벤트 데이터
     const events = [
